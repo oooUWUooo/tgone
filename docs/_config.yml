@@ -1,0 +1,4 @@
+# Configuration for GitHub Pages
+# This file is needed to ensure GitHub Pages serves the site properly
+# The .nojekyll file in this directory disables Jekyll processing
+encoding: UTF-8
