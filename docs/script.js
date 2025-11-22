@@ -37,26 +37,24 @@ document.addEventListener('DOMContentLoaded', function() {
         return processed;
     }
     
-    // Function to get real articles from Habr RSS
+    // Function to get real articles from Habr RSS via our API
     function getHabrArticles() {
         return new Promise((resolve, reject) => {
-            const rssUrl = 'https://habr.com/ru/rss/hub/infosecurity/all/?fl=ru';
-            
-            // Using feednami to parse the RSS feed
-            if (typeof feednami !== 'undefined') {
-                feednami.load(rssUrl, function(err, feed) {
-                    if (err) {
-                        console.error('Error loading RSS feed:', err);
-                        reject(err);
-                        return;
+            // Use our backend API to fetch articles (to avoid CORS issues)
+            fetch('/api/articles')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
-                    
-                    const articles = feed.entries.slice(0, 10); // Get first 10 articles
-                    resolve(articles);
+                    return response.json();
+                })
+                .then(data => {
+                    resolve(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching articles from API:', error);
+                    reject(error);
                 });
-            } else {
-                reject(new Error('Feednami library not loaded'));
-            }
         });
     }
     
@@ -69,21 +67,8 @@ document.addEventListener('DOMContentLoaded', function() {
         let result = 'Последние статьи по информационной безопасности:<br><br>';
         
         articles.forEach((article, index) => {
-            // Clean up description by removing HTML tags and limiting length
-            let description = article.description || article.contentSnippet || article.content || '';
-            
-            // Remove HTML tags
-            const div = document.createElement('div');
-            div.innerHTML = description;
-            description = div.textContent || div.innerText || '';
-            
-            // Limit description length
-            if (description.length > 200) {
-                description = description.substring(0, 200) + '...';
-            }
-            
             result += `📚 <strong>${article.title}</strong><br>`;
-            result += `${description}<br>`;
+            result += `${article.summary}<br>`;
             result += `🔗 <a href="${article.link}" target="_blank">Читать на Хабре</a><br><br>`;
         });
         
