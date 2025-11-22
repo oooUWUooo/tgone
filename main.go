@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"html"
 	"log"
@@ -52,7 +53,40 @@ func NewBot(token string) *Bot {
 	}
 }
 
+// NewBotWithoutTelegram creates a bot instance without connecting to Telegram API
+// This is used for web-only mode where only the API and web interface are needed
+func NewBotWithoutTelegram() *Bot {
+	return &Bot{
+		bot:      nil, // No Telegram bot connection
+		fp:       gofeed.NewParser(),
+		limiter:  rate.NewLimiter(rate.Every(1*time.Second), 1),
+		articles: make(map[string]bool),
+		articleTimestamps: make(map[string]time.Time),
+		articleExpiry: 24 * time.Hour, // Keep articles for 24 hours
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
+}
+
 func (b *Bot) Start() {
+	if b.bot == nil {
+		// In web-only mode, don't start the Telegram bot
+		log.Println("Running in web-only mode - Telegram bot disabled")
+		// Keep the cleanup goroutine running
+		go func() {
+			ticker := time.NewTicker(1 * time.Hour) // Clean up every hour
+			defer ticker.Stop()
+			for range ticker.C {
+				b.cleanupExpiredArticles()
+				log.Println("Cleaned up expired articles")
+			}
+		}()
+		
+		// Wait indefinitely since there's no bot to run
+		select {}
+	}
+	
 	log.Printf("Authorized on account %s", b.bot.Self.UserName)
 
 	// Start periodic cleanup of expired articles
@@ -290,14 +324,83 @@ func (b *Bot) trimSummary(summary string) string {
 	return summary
 }
 
-func main() {
-	token := os.Getenv("TELEGRAM_BOT_TOKEN")
-	if token == "" {
-		log.Fatal("TELEGRAM_BOT_TOKEN environment variable is required")
+// API handler for web interface to fetch articles
+func (b *Bot) handleArticlesAPI(w http.ResponseWriter, r *http.Request) {
+	// Set CORS headers
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	if r.Method == "OPTIONS" {
+		return
 	}
 
-	bot := NewBot(token)
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
-	log.Println("Starting Habr InfoSec RSS Bot...")
-	bot.Start()
+	// Fetch articles from Habr
+	articles, err := b.getHabrInfoSecFeed()
+	if err != nil {
+		log.Printf("Error getting articles for API: %v", err)
+		http.Error(w, "Error fetching articles", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert articles to JSON response
+	var response []map[string]string
+	for _, article := range articles {
+		articleMap := map[string]string{
+			"title":   article.Title,
+			"link":    article.Link,
+			"summary": article.Summary,
+		}
+		response = append(response, articleMap)
+	}
+
+	// Set content type and send JSON response
+	w.Header().Set("Content-Type", "application/json")
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		log.Printf("Error marshaling articles to JSON: %v", err)
+		http.Error(w, "Error formatting response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Write(jsonData)
+}
+
+func main() {
+	token := os.Getenv("TELEGRAM_BOT_TOKEN")
+	
+	var bot *Bot
+	if token != "" && token != "dummy_token_for_testing" {
+		bot = NewBot(token)
+		log.Println("Starting Habr InfoSec RSS Bot...")
+	} else {
+		log.Println("TELEGRAM_BOT_TOKEN not set or using dummy token - starting in web-only mode")
+		// Create a bot instance without connecting to Telegram API
+		bot = NewBotWithoutTelegram()
+	}
+	
+	// Set up HTTP handlers for web interface
+	http.HandleFunc("/api/articles", bot.handleArticlesAPI)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Serve static files from docs directory
+		http.FileServer(http.Dir("./docs")).ServeHTTP(w, r)
+	})
+
+	// Start the web server
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // Default port
+	}
+	log.Printf("Starting web server on port %s", port)
+	log.Printf("Web interface available at http://localhost:%s", port)
+	log.Printf("API available at http://localhost:%s/api/articles", port)
+	
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Printf("Web server error: %v", err)
+	}
 }
