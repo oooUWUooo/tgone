@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Habr InfoSec RSS Bot</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Habr InfoSec RSS Bot</h1>
+            <p>Бот, который предоставляет RSS-ленту статей с Хабра по теме информационной безопасности</p>
+        </header>
+        
+        <section class="bot-interface">
+            <div class="chat-container">
+                <div class="chat-header">
+                    <h2>💬 Чат с ботом</h2>
+                </div>
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message bot-message">
+                        <div class="message-content">
+                            <p>Привет! Я бот, который предоставляет RSS-ленту статей с Хабра по теме информационной безопасности.</p>
+                            <p>Доступные команды:</p>
+                            <ul>
+                                <li><strong>/start</strong> - приветственное сообщение</li>
+                                <li><strong>/help</strong> - справка по командам</li>
+                                <li><strong>/infosec</strong> или <strong>/security</strong> - последние статьи по информационной безопасности</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="chat-input-container">
+                    <input type="text" id="messageInput" placeholder="Введите команду (/infosec, /help, и т.д.)" />
+                    <button id="sendButton">Отправить</button>
+                </div>
+            </div>
+        </section>
+        
+        <section class="features">
+            <h2>🛠 Функциональность</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>📰 RSS-лента</h3>
+                    <p>Получает последние статьи из категории "информационная безопасность" на Хабре</p>
+                </div>
+                <div class="feature-card">
+                    <h3>✅ Дедупликация</h3>
+                    <p>Предотвращает дублирование статей с помощью отслеживания GUID</p>
+                </div>
+                <div class="feature-card">
+                    <h3>🗑 Управление памятью</h3>
+                    <p>Автоматически очищает старые статьи из памяти (через 24 часа)</p>
+                </div>
+                <div class="feature-card">
+                    <h3>⚡ Безопасность</h3>
+                    <p>Правильное экранирование HTML-символов в сообщениях</p>
+                </div>
+            </div>
+        </section>
+        
+        <section class="how-to-use">
+            <h2>🚀 Как использовать</h2>
+            <ol>
+                <li>Найдите бота в Telegram</li>
+                <li>Отправьте команду <strong>/start</strong></li>
+                <li>Используйте команду <strong>/infosec</strong> или <strong>/security</strong>, чтобы получить последние статьи по информационной безопасности</li>
+            </ol>
+        </section>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
