@@ -17,10 +17,11 @@ import (
 )
 
 type Article struct {
-	Title   string
-	Link    string
-	Summary string
-	Date    time.Time
+	Title    string
+	Link     string
+	Summary  string
+	ImageURL string
+	Date     time.Time
 }
 
 type Bot struct {
@@ -284,12 +285,26 @@ func (b *Bot) getHabrInfoSecFeed() ([]Article, error) {
 			pubDate = *item.PublishedParsed
 		}
 
+		// Extract Image URL from description if present
+		imageURL := ""
+		if strings.Contains(item.Description, "<img") {
+			start := strings.Index(item.Description, "src=\"")
+			if start != -1 {
+				start += 5
+				end := strings.Index(item.Description[start:], "\"")
+				if end != -1 {
+					imageURL = item.Description[start : start+end]
+				}
+			}
+		}
+
 		// Create article
 		article := Article{
-			Title:   item.Title,
-			Link:    item.Link,
-			Summary: b.trimSummary(item.Description),
-			Date:    pubDate,
+			Title:    item.Title,
+			Link:     item.Link,
+			Summary:  b.trimSummary(item.Description),
+			ImageURL: imageURL,
+			Date:     pubDate,
 		}
 
 		articles = append(articles, article)
@@ -304,14 +319,16 @@ func (b *Bot) getHabrInfoSecFeed() ([]Article, error) {
 }
 
 func (b *Bot) trimSummary(summary string) string {
-	// Remove HTML tags and trim length
-	summary = strings.ReplaceAll(summary, "<br>", " ")
-	summary = strings.ReplaceAll(summary, "<p>", " ")
-	summary = strings.ReplaceAll(summary, "</p>", " ")
-	summary = strings.ReplaceAll(summary, "<strong>", "")
-	summary = strings.ReplaceAll(summary, "</strong>", "")
-	summary = strings.ReplaceAll(summary, "<em>", "")
-	summary = strings.ReplaceAll(summary, "</em>", "")
+	// Remove ALL HTML tags
+	for strings.Contains(summary, "<") {
+		start := strings.Index(summary, "<")
+		end := strings.Index(summary[start:], ">")
+		if end != -1 {
+			summary = summary[:start] + " " + summary[start+end+1:]
+		} else {
+			break
+		}
+	}
 
 	// Remove extra spaces
 	summary = strings.Join(strings.Fields(summary), " ")
@@ -349,12 +366,14 @@ func (b *Bot) handleArticlesAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert articles to JSON response
-	var response []map[string]string
+	var response []map[string]interface{}
 	for _, article := range articles {
-		articleMap := map[string]string{
-			"title":   article.Title,
-			"link":    article.Link,
-			"summary": article.Summary,
+		articleMap := map[string]interface{}{
+			"title":    article.Title,
+			"link":     article.Link,
+			"summary":  article.Summary,
+			"image":    article.ImageURL,
+			"date":     article.Date.Format(time.RFC3339),
 		}
 		response = append(response, articleMap)
 	}

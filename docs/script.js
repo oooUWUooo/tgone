@@ -2,149 +2,174 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatMessages = document.getElementById('chatMessages');
     const messageInput = document.getElementById('messageInput');
     const sendButton = document.getElementById('sendButton');
+    const clearChatBtn = document.getElementById('clearChat');
     
+    // Initialize Lucide icons
+    function initIcons() {
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
     // Function to add a message to the chat
-    function addMessage(text, isUser = false) {
+    function addMessage(content, isUser = false, type = 'text') {
         const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+        messageDiv.className = `flex gap-3 ${isUser ? 'flex-row-reverse self-end' : ''} max-w-[90%] md:max-w-[85%] message-in`;
         
-        const messageContent = document.createElement('div');
-        messageContent.className = 'message-content';
+        const avatar = document.createElement('div');
+        avatar.className = `flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isUser ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`;
+        avatar.innerHTML = isUser ? '<i data-lucide="user" class="w-4 h-4"></i>' : '<i data-lucide="bot" class="w-4 h-4"></i>';
         
-        // Process the text to handle HTML-like formatting
-        const processedText = processMessageText(text);
-        messageContent.innerHTML = processedText;
+        const bubble = document.createElement('div');
+        bubble.className = `${isUser ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-slate-100 text-slate-800 rounded-tl-none'} p-4 rounded-2xl shadow-sm message-content`;
+
+        if (type === 'text') {
+            bubble.innerHTML = `<p class="text-sm leading-relaxed">${processText(content)}</p>`;
+        } else if (type === 'html') {
+            bubble.innerHTML = content;
+        } else if (type === 'loading') {
+            bubble.innerHTML = `
+                <div class="flex items-center gap-1.5 py-1">
+                    <div class="dot-flashing"></div>
+                </div>
+            `;
+            messageDiv.id = 'loadingMessage';
+        }
         
-        messageDiv.appendChild(messageContent);
+        messageDiv.appendChild(avatar);
+        messageDiv.appendChild(bubble);
         chatMessages.appendChild(messageDiv);
         
         // Scroll to bottom
         chatMessages.scrollTop = chatMessages.scrollHeight;
+        initIcons();
+        return messageDiv;
     }
-    
-    // Function to process message text and handle formatting
-    function processMessageText(text) {
-        // Convert URLs to links
-        let processed = text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+
+    function processText(text) {
+        // Simple escaping for user input to prevent XSS
+        const div = document.createElement('div');
+        div.textContent = text;
+        let escaped = div.innerHTML;
+
+        // Convert common commands to bold/code
+        escaped = escaped.replace(/(\/\w+)/g, '<code class="bg-white/30 px-1 rounded">$1</code>');
         
-        // Convert bold text
-        processed = processed.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        processed = processed.replace(/\*(.*?)\*/g, '<em>$1</em>');
-        
-        // Convert newlines to <br>
-        processed = processed.replace(/\n/g, '<br>');
-        
-        return processed;
+        return escaped;
     }
-    
-    // Function to get real articles from Habr RSS via our API
-    function getHabrArticles() {
-        return new Promise((resolve, reject) => {
-            // Use our backend API to fetch articles (to avoid CORS issues)
-            fetch('/api/articles')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    resolve(data);
-                })
-                .catch(error => {
-                    console.error('Error fetching articles from API:', error);
-                    reject(error);
-                });
-        });
-    }
-    
-    // Function to format articles for display
-    function formatArticles(articles) {
+
+    // Function to render article cards
+    function renderArticles(articles) {
         if (!articles || articles.length === 0) {
-            return 'Не удалось найти статьи по информационной безопасности.';
+            return '<p class="text-sm">К сожалению, новых статей не найдено.</p>';
         }
+
+        let html = '<div class="space-y-4">';
+        html += '<p class="text-sm font-medium mb-4">Вот последние новости информационной безопасности:</p>';
         
-        let result = 'Последние статьи по информационной безопасности:<br><br>';
-        
-        articles.forEach((article, index) => {
-            result += `📚 <strong>${article.title}</strong><br>`;
-            result += `${article.summary}<br>`;
-            result += `🔗 <a href="${article.link}" target="_blank">Читать на Хабре</a><br><br>`;
+        articles.forEach(article => {
+            const date = new Date(article.date).toLocaleDateString('ru-RU', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+
+            html += `
+                <div class="article-card group bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all">
+                    ${article.image ? `
+                        <div class="h-40 overflow-hidden bg-slate-100 relative">
+                            <img src="${article.image}" alt="${article.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                            <div class="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-slate-600 shadow-sm">HABR</div>
+                        </div>
+                    ` : ''}
+                    <div class="p-4">
+                        <div class="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">
+                            <i data-lucide="calendar" class="w-3 h-3"></i>
+                            ${date}
+                        </div>
+                        <h3 class="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors mb-2 line-clamp-2 leading-tight">
+                            ${article.title}
+                        </h3>
+                        <p class="text-xs text-slate-500 line-clamp-3 leading-relaxed mb-4">
+                            ${article.summary}
+                        </p>
+                        <a href="${article.link}" target="_blank" class="inline-flex items-center justify-center gap-2 w-full py-2 bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 rounded-lg text-xs font-bold transition-all border border-slate-100 hover:border-indigo-100">
+                            Читать на Хабре
+                            <i data-lucide="external-link" class="w-3 h-3"></i>
+                        </a>
+                    </div>
+                </div>
+            `;
         });
         
-        return result;
+        html += '</div>';
+        return html;
     }
-    
-    // Function to handle bot response for /infosec and /security commands
-    async function handleInfosecCommand() {
-        try {
-            addMessage('Получаю последние статьи по информационной безопасности с Хабра...', false);
-            const articles = await getHabrArticles();
-            const formattedArticles = formatArticles(articles);
-            addMessage(formattedArticles, false);
-        } catch (error) {
-            console.error('Error fetching articles:', error);
-            addMessage('Ошибка при загрузке статей. Пожалуйста, попробуйте позже.', false);
-        }
-    }
-    
-    // Function to simulate bot response
-    function getBotResponse(message) {
-        const lowerMessage = message.toLowerCase().trim();
+
+    async function handleCommand(command) {
+        const cmd = command.toLowerCase().trim();
         
-        if (lowerMessage === '/start' || lowerMessage === '/start ') {
-            return `Привет! Я бот, который предоставляет RSS-ленту статей с Хабра по теме информационной безопасности.<br><br>Доступные команды:<br>• /help - показать справку по командам<br>• /infosec или /security - получить последние статьи по информационной безопасности`;
-        } else if (lowerMessage === '/help' || lowerMessage === '/help ') {
-            return `Доступные команды:<br>• /infosec или /security - получить последние статьи по информационной безопасности<br>• /help - показать это сообщение<br>• /start - начать работу с ботом`;
-        } else if (lowerMessage === '/infosec' || lowerMessage === '/security' || lowerMessage === '/infosec ' || lowerMessage === '/security ') {
-            // Return a loading message, actual articles will be loaded asynchronously
-            return 'Получаю последние статьи по информационной безопасности с Хабра...';
-        } else if (message === '') {
-            return 'Пожалуйста, введите команду. Доступные команды: /start, /help, /infosec, /security';
-        } else {
-            return 'Я не понимаю эту команду. Попробуйте использовать одну из следующих команд: /start, /help, /infosec, /security';
-        }
-    }
-    
-    // Function to handle sending a message
-    function sendMessage() {
-        const message = messageInput.value.trim();
-        
-        if (message) {
-            // Add user message
-            addMessage(message, true);
-            
-            // Clear input
-            messageInput.value = '';
-            
-            const lowerMessage = message.toLowerCase().trim();
-            
-            // Check if it's an infosec/security command to handle asynchronously
-            if (lowerMessage === '/infosec' || lowerMessage === '/security' || 
-                lowerMessage === '/infosec ' || lowerMessage === '/security ') {
-                // Handle these commands with real RSS functionality
-                handleInfosecCommand();
-            } else {
-                // Simulate bot thinking for other commands
-                setTimeout(() => {
-                    const botResponse = getBotResponse(message);
-                    addMessage(botResponse, false);
-                }, 1000);
+        if (cmd === '/start') {
+            setTimeout(() => {
+                addMessage('Я готов к работе! Используйте /infosec для получения свежих статей по безопасности или /help для списка команд.');
+            }, 500);
+        } else if (cmd === '/help') {
+            setTimeout(() => {
+                addMessage('Доступные команды:<br>• <strong>/infosec</strong> — последние новости ИБ<br>• <strong>/help</strong> — помощь<br>• <strong>/start</strong> — перезапуск бота', false, 'html');
+            }, 500);
+        } else if (cmd === '/infosec' || cmd === '/security') {
+            const loading = addMessage('', false, 'loading');
+
+            try {
+                const response = await fetch('/api/articles');
+                if (!response.ok) throw new Error('Network response was not ok');
+                const articles = await response.json();
+
+                loading.remove();
+                addMessage(renderArticles(articles), false, 'html');
+            } catch (error) {
+                console.error('Error fetching articles:', error);
+                loading.remove();
+                addMessage('Извините, произошла ошибка при получении данных. Попробуйте позже.', false);
             }
+        } else {
+            setTimeout(() => {
+                addMessage('Неизвестная команда. Введите /help чтобы увидеть список доступных команд.');
+            }, 500);
         }
     }
-    
-    // Event listeners
+
+    function sendMessage() {
+        const text = messageInput.value.trim();
+        if (!text) return;
+
+        addMessage(text, true);
+        messageInput.value = '';
+        
+        handleCommand(text);
+    }
+
+    // Event Listeners
     sendButton.addEventListener('click', sendMessage);
-    
-    messageInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            sendMessage();
-        }
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
     });
-    
-    // Add initial bot message if not already present
-    if (chatMessages.children.length === 0) {
-        addMessage('Привет! Я бот, который предоставляет RSS-ленту статей с Хабра по теме информационной безопасности. Введите команду, например /infosec, чтобы получить последние статьи.', false);
+
+    clearChatBtn.addEventListener('click', () => {
+        chatMessages.innerHTML = '';
+        addMessage('Чат очищен. Чем я могу помочь?');
+    });
+
+    // Handle mobile menu toggle (simple version)
+    document.getElementById('menuToggle').addEventListener('click', () => {
+        alert('Habr InfoSec Bot v1.0.0\nПрофессиональный агрегатор новостей информационной безопасности.');
+    });
+
+    // Initial greeting if chat is empty
+    if (chatMessages.children.length <= 1) {
+        // Already have one welcome message in HTML
     }
+
+    // Export for debugging
+    window.bot = { addMessage, handleCommand };
 });
