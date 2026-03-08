@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HABR INFOSEC — Лента угроз</title>
+  <title>HABR INFOSEC — Threat Intelligence Feed</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Serif+Display:ital@0;1&family=Mulish:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -11,28 +11,24 @@
 </head>
 <body>
 
-  <!-- Scanline overlay -->
   <div class="scanlines" aria-hidden="true"></div>
-  <!-- Noise grain -->
   <div class="grain" aria-hidden="true"></div>
 
-  <!-- Top ticker bar -->
-  <div class="ticker-bar" id="tickerBar">
-    <span class="ticker-label">LIVE FEED</span>
+  <!-- Live ticker -->
+  <div class="ticker-bar">
+    <span class="ticker-label">LIVE</span>
     <div class="ticker-track">
-      <div class="ticker-content" id="tickerContent">
-        <span>Загрузка ленты угроз...</span>
-      </div>
+      <div class="ticker-content" id="tickerContent"><span>Загрузка ленты...</span></div>
     </div>
     <span class="ticker-time" id="tickerTime">--:--:--</span>
   </div>
 
-  <!-- Site header -->
+  <!-- Header -->
   <header class="site-header">
     <div class="header-inner">
       <div class="header-brand">
         <div class="brand-icon">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
             <polygon points="14,2 26,8 26,20 14,26 2,20 2,8" stroke="#e63946" stroke-width="1.5" fill="none"/>
             <polygon points="14,7 21,11 21,19 14,23 7,19 7,11" stroke="#e63946" stroke-width="1" fill="none" opacity="0.5"/>
             <circle cx="14" cy="15" r="2.5" fill="#e63946"/>
@@ -45,9 +41,22 @@
         </div>
       </div>
 
+      <!-- Search bar -->
+      <div class="search-wrap">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="searchInput" class="search-input" placeholder="Поиск... (/)">
+        <kbd class="search-kbd" id="searchKbd">ESC</kbd>
+      </div>
+
       <nav class="header-nav">
         <button class="nav-btn active" data-view="feed" onclick="switchView('feed')">
           <span class="nav-dot"></span>Лента
+        </button>
+        <button class="nav-btn" data-view="bookmarks" onclick="switchView('bookmarks')">
+          <span class="nav-dot"></span>Закладки
+          <span class="badge" id="bookmarkBadge" style="display:none">0</span>
         </button>
         <button class="nav-btn" data-view="stats" onclick="switchView('stats')">
           <span class="nav-dot"></span>Статистика
@@ -57,13 +66,13 @@
         </button>
       </nav>
 
-      <div class="header-status">
+      <div class="header-actions">
         <div class="status-pill" id="statusPill">
           <span class="status-dot"></span>
           <span class="status-text" id="statusText">Подключение...</span>
         </div>
-        <button class="refresh-btn" onclick="loadFeed()" title="Обновить">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <button class="icon-btn" id="refreshBtn" onclick="refreshAll()" title="Обновить все хабы (R)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M23 4v6h-6M1 20v-6h6"/>
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
           </svg>
@@ -72,135 +81,118 @@
     </div>
   </header>
 
-  <!-- Main content -->
+  <!-- Hub tabs — injected by JS -->
+  <div class="hub-tabs-bar" id="hubTabsBar" style="display:none">
+    <div class="hub-tabs" id="hubTabs"></div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast hidden" id="toast"></div>
+
   <main class="main-content">
 
-    <!-- ── FEED VIEW ──────────────────────────────────────────────── -->
+    <!-- ── FEED VIEW ──────────────────────────────────── -->
     <section id="viewFeed" class="view active">
       <div class="feed-layout">
-
-        <!-- Articles grid -->
         <div class="articles-area">
           <div class="section-header">
-            <span class="section-label">// СТАТЬИ</span>
-            <span class="article-count" id="articleCount">—</span>
+            <span class="section-label" id="feedLabel">// ЛЕНТА</span>
+            <span class="article-count" id="articleCount"></span>
           </div>
 
-          <!-- Loading skeleton -->
           <div id="loadingState" class="loading-grid">
             <div class="skeleton-card" style="--i:0"><div class="sk-img"></div><div class="sk-tag"></div><div class="sk-title"></div><div class="sk-title short"></div><div class="sk-body"></div><div class="sk-body short"></div></div>
             <div class="skeleton-card" style="--i:1"><div class="sk-img"></div><div class="sk-tag"></div><div class="sk-title"></div><div class="sk-title short"></div><div class="sk-body"></div><div class="sk-body short"></div></div>
             <div class="skeleton-card" style="--i:2"><div class="sk-img"></div><div class="sk-tag"></div><div class="sk-title"></div><div class="sk-title short"></div><div class="sk-body"></div><div class="sk-body short"></div></div>
           </div>
 
-          <!-- Error state -->
           <div id="errorState" class="error-state hidden">
-            <div class="error-icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-            </div>
+            <div class="error-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
             <h3 class="error-title">Нет соединения с API</h3>
-            <p class="error-msg" id="errorMsg">Убедитесь, что сервер запущен, или настройте URL в разделе Настройки.</p>
-            <button class="btn-primary" onclick="loadFeed()">Повторить</button>
+            <p class="error-msg" id="errorMsg">Проверьте, что сервер запущен. Или настройте URL в разделе Настройки.</p>
+            <button class="btn-primary" onclick="loadHub(state.currentHub)">Повторить</button>
           </div>
 
-          <!-- Articles grid -->
+          <div id="searchResults" class="articles-grid hidden"></div>
           <div id="articlesGrid" class="articles-grid hidden"></div>
         </div>
 
-        <!-- Sidebar -->
         <aside class="feed-sidebar">
           <div class="sidebar-widget">
             <div class="widget-title">// СТАТУС</div>
-            <div class="stat-row"><span>API</span><span class="stat-val" id="apiStatusVal">—</span></div>
-            <div class="stat-row"><span>Последнее обновление</span><span class="stat-val" id="lastUpdateVal">—</span></div>
-            <div class="stat-row"><span>Статей загружено</span><span class="stat-val" id="loadedCount">—</span></div>
+            <div class="stat-row"><span>API</span><span class="stat-val" id="sApiStatus">—</span></div>
+            <div class="stat-row"><span>Обновлено</span><span class="stat-val" id="sLastUpdate">—</span></div>
+            <div class="stat-row"><span>Статей</span><span class="stat-val" id="sLoaded">—</span></div>
+            <div class="stat-row"><span>Подписчиков</span><span class="stat-val" id="sSubs">—</span></div>
           </div>
 
           <div class="sidebar-widget">
-            <div class="widget-title">// КОМАНДЫ</div>
-            <div class="cmd-list">
-              <button class="cmd-item" onclick="loadFeed()">
-                <code>/infosec</code>
-                <span>Обновить ленту</span>
-              </button>
-              <button class="cmd-item" onclick="switchView('stats')">
-                <code>/stats</code>
-                <span>Статистика</span>
-              </button>
-              <button class="cmd-item" onclick="switchView('settings')">
-                <code>/config</code>
-                <span>Настройки API</span>
-              </button>
+            <div class="widget-title">// ХАБЫ</div>
+            <div class="sidebar-hubs" id="sidebarHubs"></div>
+          </div>
+
+          <div class="sidebar-widget">
+            <div class="widget-title">// ГОРЯЧИЕ КЛАВИШИ</div>
+            <div class="shortcuts">
+              <div class="shortcut"><kbd>/</kbd><span>Поиск</span></div>
+              <div class="shortcut"><kbd>R</kbd><span>Обновить</span></div>
+              <div class="shortcut"><kbd>1–6</kbd><span>Хаб</span></div>
+              <div class="shortcut"><kbd>B</kbd><span>Закладки</span></div>
+              <div class="shortcut"><kbd>Esc</kbd><span>Закрыть</span></div>
             </div>
-          </div>
-
-          <div class="sidebar-widget">
-            <div class="widget-title">// О ПРОЕКТЕ</div>
-            <p class="widget-text">
-              Агрегатор статей по информационной безопасности с&nbsp;Хабра.
-              Данные поступают через RSS&#8209;ленту хаба&nbsp;<em>infosecurity</em>.
-            </p>
-            <a href="https://habr.com/ru/hub/infosecurity/" target="_blank" rel="noopener" class="widget-link">
-              Открыть хаб на Хабре →
-            </a>
           </div>
         </aside>
       </div>
     </section>
 
-    <!-- ── STATS VIEW ─────────────────────────────────────────────── -->
-    <section id="viewStats" class="view hidden">
+    <!-- ── BOOKMARKS VIEW ─────────────────────────────── -->
+    <section id="viewBookmarks" class="view hidden">
       <div class="section-header">
-        <span class="section-label">// СТАТИСТИКА ЛЕНТЫ</span>
+        <span class="section-label">// ЗАКЛАДКИ</span>
+        <button class="btn-ghost" onclick="clearBookmarks()" id="clearBmBtn" style="display:none">Очистить все</button>
       </div>
-      <div class="stats-grid" id="statsGrid">
-        <div class="stat-card"><div class="stat-card-num" id="stat-total">—</div><div class="stat-card-label">Статей в ленте</div></div>
-        <div class="stat-card"><div class="stat-card-num" id="stat-with-img">—</div><div class="stat-card-label">С изображением</div></div>
-        <div class="stat-card"><div class="stat-card-num" id="stat-today">—</div><div class="stat-card-label">За сегодня</div></div>
-        <div class="stat-card"><div class="stat-card-num" id="stat-week">—</div><div class="stat-card-label">За неделю</div></div>
+      <div id="bookmarksEmpty" class="error-state">
+        <div class="error-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></div>
+        <h3 class="error-title">Нет закладок</h3>
+        <p class="error-msg">Нажмите 🔖 на карточке статьи, чтобы сохранить.</p>
       </div>
-      <div id="statsEmpty" class="stats-empty hidden">
-        <p>Загрузите ленту чтобы увидеть статистику.</p>
-        <button class="btn-primary" onclick="loadFeed(); switchView('feed')">Загрузить</button>
-      </div>
+      <div id="bookmarksGrid" class="articles-grid hidden"></div>
     </section>
 
-    <!-- ── SETTINGS VIEW ──────────────────────────────────────────── -->
+    <!-- ── STATS VIEW ─────────────────────────────────── -->
+    <section id="viewStats" class="view hidden">
+      <div class="section-header"><span class="section-label">// СТАТИСТИКА</span></div>
+      <div class="stats-summary" id="statsSummary"></div>
+      <div class="stats-hubs" id="statsHubs"></div>
+    </section>
+
+    <!-- ── SETTINGS VIEW ─────────────────────────────── -->
     <section id="viewSettings" class="view hidden">
-      <div class="section-header">
-        <span class="section-label">// КОНФИГУРАЦИЯ</span>
-      </div>
+      <div class="section-header"><span class="section-label">// КОНФИГУРАЦИЯ</span></div>
       <div class="settings-panel">
         <div class="settings-group">
-          <label class="settings-label" for="apiUrlInput">URL API-сервера</label>
-          <p class="settings-hint">
-            При запуске через Docker оставьте <code>/api/articles</code>.
-            Для GitHub Pages укажите полный URL задеплоенного сервера.
-          </p>
-          <div class="settings-input-row">
-            <input type="text" id="apiUrlInput" class="settings-input" placeholder="https://your-server.example.com/api/articles">
+          <label class="settings-label">URL API-сервера</label>
+          <p class="settings-hint">При запуске через Docker оставьте <code>/api/articles</code>. Для GitHub Pages укажите полный URL задеплоенного сервера.</p>
+          <div class="settings-row">
+            <input type="text" id="apiUrlInput" class="settings-input" placeholder="https://your-server.com/api">
             <button class="btn-primary" onclick="saveSettings()">Сохранить</button>
           </div>
           <div class="settings-presets">
-            <span class="preset-label">Быстрые варианты:</span>
-            <button class="preset-btn" onclick="setPreset('/api/articles')">Локальный</button>
-            <button class="preset-btn" onclick="setPreset('http://localhost:8081/api/articles')">Docker :8081</button>
-            <button class="preset-btn" onclick="setPreset('http://localhost:8082/api/articles')">Docker :8082</button>
+            <span class="preset-label">Пресеты:</span>
+            <button class="preset-btn" onclick="setPreset('/api')">Локальный</button>
+            <button class="preset-btn" onclick="setPreset('http://localhost:8081/api')">:8081</button>
+            <button class="preset-btn" onclick="setPreset('http://localhost:8082/api')">:8082</button>
           </div>
-          <div class="settings-saved hidden" id="settingsSaved">✓ Настройки сохранены</div>
+          <div class="settings-saved hidden" id="settingsSaved">✓ Сохранено</div>
         </div>
-
         <div class="settings-group">
-          <label class="settings-label">Текущий URL</label>
-          <code class="settings-current" id="settingsCurrent">/api/articles</code>
+          <label class="settings-label">Активный URL</label>
+          <code class="settings-current" id="settingsCurrent">/api</code>
         </div>
-
         <div class="settings-group">
           <label class="settings-label">Проверка соединения</label>
-          <div class="settings-input-row">
-            <button class="btn-secondary" onclick="testConnection()">Тест соединения</button>
+          <div class="settings-row">
+            <button class="btn-secondary" onclick="testConnection()">Тест</button>
           </div>
           <div class="test-result hidden" id="testResult"></div>
         </div>
@@ -212,9 +204,18 @@
   <!-- Article modal -->
   <div class="modal-overlay hidden" id="modalOverlay" onclick="closeModal()">
     <article class="modal-card" onclick="event.stopPropagation()">
-      <button class="modal-close" onclick="closeModal()">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
+      <div class="modal-toolbar">
+        <span class="modal-hub-tag" id="modalHubTag"></span>
+        <div class="modal-actions">
+          <button class="icon-btn" id="modalBookmarkBtn" title="Закладка"></button>
+          <a class="icon-btn" id="modalOpenLink" target="_blank" rel="noopener" title="Открыть">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          </a>
+          <button class="icon-btn" onclick="closeModal()" title="Закрыть (Esc)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
       <div class="modal-img-wrap" id="modalImg"></div>
       <div class="modal-body">
         <div class="modal-meta" id="modalMeta"></div>
@@ -222,7 +223,7 @@
         <p class="modal-summary" id="modalSummary"></p>
         <a class="btn-primary modal-cta" id="modalLink" target="_blank" rel="noopener">
           Читать на Хабре
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
         </a>
       </div>
     </article>
