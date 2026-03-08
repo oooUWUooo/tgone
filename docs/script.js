@@ -1,164 +1,365 @@
-document.addEventListener('DOMContentLoaded', function () {
-    const chatMessages = document.getElementById('chatMessages');
-    const messageInput = document.getElementById('messageInput');
-    const sendButton   = document.getElementById('sendButton');
-    const clearChatBtn = document.getElementById('clearChat');
+/* ─────────────────────────────────────────────────────────────
+   HABR INFOSEC — script.js
+   ───────────────────────────────────────────────────────────── */
+'use strict';
 
-    function initIcons() {
-        if (window.lucide) window.lucide.createIcons();
-    }
+// ── Config ────────────────────────────────────────────────────
 
-    /* ── Message rendering ────────────────────────────────────────────────── */
+const DEFAULT_API_URL = '/api/articles';
 
-    function addMessage(content, isUser = false, type = 'text') {
-        const wrap = document.createElement('div');
-        wrap.className = `flex gap-3 ${isUser ? 'flex-row-reverse self-end' : ''} max-w-[90%] md:max-w-[85%] message-in`;
+function getApiUrl() {
+  return localStorage.getItem('habrInfosec_apiUrl') || DEFAULT_API_URL;
+}
 
-        const avatar = document.createElement('div');
-        avatar.className = `flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isUser ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`;
-        avatar.innerHTML = isUser
-            ? '<i data-lucide="user" class="w-4 h-4"></i>'
-            : '<i data-lucide="bot"  class="w-4 h-4"></i>';
+function setApiUrl(url) {
+  localStorage.setItem('habrInfosec_apiUrl', url.trim() || DEFAULT_API_URL);
+}
 
-        const bubble = document.createElement('div');
-        bubble.className = `${isUser
-            ? 'bg-indigo-600 text-white rounded-tr-none'
-            : 'bg-slate-100 text-slate-800 rounded-tl-none'
-        } p-4 rounded-2xl shadow-sm message-content`;
+// ── State ─────────────────────────────────────────────────────
 
-        if (type === 'loading') {
-            bubble.innerHTML = `<div class="flex items-center gap-1.5 py-1"><div class="dot-flashing"></div></div>`;
-            wrap.id = 'loadingMessage';
-        } else if (type === 'html') {
-            bubble.innerHTML = content;
-        } else {
-            bubble.innerHTML = `<p class="text-sm leading-relaxed">${escapeAndFormat(content)}</p>`;
-        }
+let cachedArticles = [];
+let isLoading = false;
 
-        wrap.appendChild(avatar);
-        wrap.appendChild(bubble);
-        chatMessages.appendChild(wrap);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        initIcons();
-        return wrap;
-    }
+// ── DOM refs ──────────────────────────────────────────────────
 
-    function escapeAndFormat(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML.replace(/(\/\w+)/g, '<code class="bg-white/30 px-1 rounded">$1</code>');
-    }
+const $  = id => document.getElementById(id);
+const $$ = sel => document.querySelectorAll(sel);
 
-    /* ── Article card rendering ───────────────────────────────────────────── */
+// ── Clock ─────────────────────────────────────────────────────
 
-    function renderArticles(articles) {
-        if (!articles || articles.length === 0) {
-            return '<p class="text-sm">Статей не найдено.</p>';
-        }
-
-        const cards = articles.map(a => {
-            const date = new Date(a.date).toLocaleDateString('ru-RU', {
-                day: 'numeric', month: 'long', year: 'numeric'
-            });
-            const img = a.image
-                ? `<div class="h-40 overflow-hidden bg-slate-100 relative">
-                       <img src="${sanitizeUrl(a.image)}" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
-                       <div class="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-slate-600 shadow-sm">HABR</div>
-                   </div>`
-                : '';
-            return `
-                <div class="article-card group bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all">
-                    ${img}
-                    <div class="p-4">
-                        <div class="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">
-                            <i data-lucide="calendar" class="w-3 h-3"></i>${date}
-                        </div>
-                        <h3 class="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors mb-2 line-clamp-2 leading-tight">
-                            ${escapeHtml(a.title)}
-                        </h3>
-                        <p class="text-xs text-slate-500 line-clamp-3 leading-relaxed mb-4">${escapeHtml(a.summary)}</p>
-                        <a href="${sanitizeUrl(a.link)}" target="_blank" rel="noopener noreferrer"
-                           class="inline-flex items-center justify-center gap-2 w-full py-2 bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 rounded-lg text-xs font-bold transition-all border border-slate-100 hover:border-indigo-100">
-                            Читать на Хабре
-                            <i data-lucide="external-link" class="w-3 h-3"></i>
-                        </a>
-                    </div>
-                </div>`;
-        }).join('');
-
-        return `<div class="space-y-4">
-                    <p class="text-sm font-medium mb-4">Последние новости информационной безопасности:</p>
-                    ${cards}
-                </div>`;
-    }
-
-    function escapeHtml(str) {
-        const d = document.createElement('div');
-        d.textContent = String(str);
-        return d.innerHTML;
-    }
-
-    function sanitizeUrl(url) {
-        try {
-            const u = new URL(url);
-            return (u.protocol === 'https:' || u.protocol === 'http:') ? url : '#';
-        } catch { return '#'; }
-    }
-
-    /* ── Command handling ─────────────────────────────────────────────────── */
-
-    async function handleCommand(command) {
-        const cmd = command.toLowerCase().trim();
-
-        if (cmd === '/start') {
-            setTimeout(() => addMessage(
-                'Я готов к работе! Введите /infosec для свежих статей или /help для списка команд.'
-            ), 400);
-
-        } else if (cmd === '/help') {
-            setTimeout(() => addMessage(
-                'Доступные команды:<br>• <strong>/infosec</strong> — последние новости ИБ<br>• <strong>/help</strong> — помощь<br>• <strong>/start</strong> — перезапуск',
-                false, 'html'
-            ), 400);
-
-        } else if (cmd === '/infosec' || cmd === '/security') {
-            const loading = addMessage('', false, 'loading');
-            try {
-                const res = await fetch('/api/articles');
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const articles = await res.json();
-                loading.remove();
-                addMessage(renderArticles(articles), false, 'html');
-            } catch (err) {
-                console.error('Fetch error:', err);
-                loading.remove();
-                addMessage('Ошибка при получении статей. Попробуйте позже.');
-            }
-
-        } else {
-            setTimeout(() => addMessage(
-                'Неизвестная команда. Введите /help чтобы увидеть список команд.'
-            ), 400);
-        }
-    }
-
-    /* ── Send ─────────────────────────────────────────────────────────────── */
-
-    function sendMessage() {
-        const text = messageInput.value.trim();
-        if (!text) return;
-        addMessage(text, true);
-        messageInput.value = '';
-        handleCommand(text);
-    }
-
-    sendButton.addEventListener('click', sendMessage);
-    messageInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
-    clearChatBtn.addEventListener('click', () => {
-        chatMessages.innerHTML = '';
-        addMessage('Чат очищен. Чем могу помочь?');
+function startClock() {
+  const el = $('tickerTime');
+  const tick = () => {
+    el.textContent = new Date().toLocaleTimeString('ru-RU', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
+  };
+  tick();
+  setInterval(tick, 1000);
+}
 
-    // Expose for debugging
-    window.bot = { addMessage, handleCommand };
+// ── Ticker ────────────────────────────────────────────────────
+
+function updateTicker(articles) {
+  const track = $('tickerContent');
+  if (!articles || articles.length === 0) {
+    track.innerHTML = '<span>Нет данных для отображения</span>';
+    return;
+  }
+
+  const items = articles.map(a => `<span>◆ ${escapeHtml(a.title)}</span>`).join('');
+  // Duplicate for seamless loop
+  track.innerHTML = items + items;
+}
+
+// ── View switching ────────────────────────────────────────────
+
+function switchView(name) {
+  $$('.view').forEach(v => v.classList.remove('active'));
+  $$('.nav-btn').forEach(b => b.classList.remove('active'));
+
+  const view = $(`view${name.charAt(0).toUpperCase() + name.slice(1)}`);
+  if (view) view.classList.add('active');
+
+  const btn = document.querySelector(`[data-view="${name}"]`);
+  if (btn) btn.classList.add('active');
+
+  if (name === 'settings') initSettingsView();
+  if (name === 'stats')    updateStats();
+}
+
+// ── Status pill ───────────────────────────────────────────────
+
+function setStatus(state, text) {
+  const pill = $('statusPill');
+  const label = $('statusText');
+  pill.className = `status-pill ${state}`;
+  label.textContent = text;
+}
+
+// ── Feed loading ──────────────────────────────────────────────
+
+async function loadFeed() {
+  if (isLoading) return;
+  isLoading = true;
+
+  const refreshBtn = document.querySelector('.refresh-btn');
+  refreshBtn.classList.add('spinning');
+  setStatus('loading', 'Загрузка...');
+
+  showLoading();
+
+  try {
+    const url = getApiUrl();
+    const res = await fetch(url, { cache: 'no-cache' });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+
+    const articles = await res.json();
+
+    if (!Array.isArray(articles)) throw new Error('Ответ API не является массивом');
+
+    cachedArticles = articles;
+    renderArticles(articles);
+    updateTicker(articles);
+    updateStats();
+
+    setStatus('online', 'Онлайн');
+    $('apiStatusVal').textContent = 'OK';
+    $('lastUpdateVal').textContent = new Date().toLocaleTimeString('ru-RU');
+    $('loadedCount').textContent = articles.length;
+
+  } catch (err) {
+    console.error('[HabrInfoSec] Fetch failed:', err);
+    showError(err.message);
+    setStatus('offline', 'Недоступен');
+    $('apiStatusVal').textContent = 'ОШИБКА';
+  } finally {
+    isLoading = false;
+    refreshBtn.classList.remove('spinning');
+  }
+}
+
+// ── Render helpers ────────────────────────────────────────────
+
+function showLoading() {
+  $('loadingState').classList.remove('hidden');
+  $('articlesGrid').classList.add('hidden');
+  $('errorState').classList.add('hidden');
+}
+
+function showError(msg) {
+  $('loadingState').classList.add('hidden');
+  $('articlesGrid').classList.add('hidden');
+  $('errorState').classList.remove('hidden');
+  $('errorMsg').textContent = msg || 'Неизвестная ошибка';
+}
+
+function renderArticles(articles) {
+  $('loadingState').classList.add('hidden');
+  $('errorState').classList.add('hidden');
+  $('articlesGrid').classList.remove('hidden');
+
+  const grid = $('articlesGrid');
+  grid.innerHTML = '';
+
+  $('articleCount').textContent = `${articles.length} статей`;
+
+  if (articles.length === 0) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--text-muted);font-family:var(--mono);font-size:12px;">НЕТ СТАТЕЙ</div>`;
+    return;
+  }
+
+  articles.forEach((article, i) => {
+    const card = buildCard(article, i);
+    grid.appendChild(card);
+  });
+}
+
+function buildCard(article, index) {
+  const card = document.createElement('div');
+  card.className = 'article-card';
+  card.style.animationDelay = `${index * 60}ms`;
+  card.style.opacity = '0';
+  card.style.animation = `card-appear 0.4s ease-out ${index * 60}ms forwards`;
+
+  const date = formatDate(article.date);
+
+  const imgHtml = article.image
+    ? `<img src="${sanitizeUrl(article.image)}" alt="" class="card-img" loading="lazy" onerror="this.closest('.card-img-wrap').innerHTML=getImgPlaceholder()">`
+    : getImgPlaceholder();
+
+  card.innerHTML = `
+    <div class="card-img-wrap">${imgHtml}</div>
+    <div class="card-body">
+      <div class="card-meta">
+        <span class="card-tag">INFOSEC</span>
+        <span class="card-date">${escapeHtml(date)}</span>
+      </div>
+      <h2 class="card-title">${escapeHtml(article.title)}</h2>
+      <p class="card-summary">${escapeHtml(article.summary || '')}</p>
+      <div class="card-footer">
+        <a class="card-read-link" href="${sanitizeUrl(article.link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+          Читать на Хабре
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+      </div>
+    </div>`;
+
+  card.addEventListener('click', () => openModal(article));
+
+  // Add card-appear keyframes once
+  if (!window._cardAnimAdded) {
+    window._cardAnimAdded = true;
+    const style = document.createElement('style');
+    style.textContent = `@keyframes card-appear { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }`;
+    document.head.appendChild(style);
+  }
+
+  return card;
+}
+
+function getImgPlaceholder() {
+  return `<div class="card-img-placeholder">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+      <polyline points="21 15 16 10 5 21"/>
+    </svg>
+  </div>`;
+}
+
+// ── Modal ─────────────────────────────────────────────────────
+
+function openModal(article) {
+  const overlay = $('modalOverlay');
+
+  $('modalTitle').textContent = article.title;
+  $('modalSummary').textContent = article.summary || '';
+  $('modalLink').href = sanitizeUrl(article.link);
+  $('modalMeta').innerHTML = `
+    <span class="card-tag">INFOSEC</span>
+    <span class="card-date">${escapeHtml(formatDate(article.date))}</span>`;
+
+  const imgWrap = $('modalImg');
+  if (article.image) {
+    imgWrap.innerHTML = `<img src="${sanitizeUrl(article.image)}" alt="" style="width:100%;max-height:260px;object-fit:cover;display:block;filter:saturate(0.7)">`;
+  } else {
+    imgWrap.innerHTML = '';
+  }
+
+  overlay.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  $('modalOverlay').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
 });
+
+// ── Stats ─────────────────────────────────────────────────────
+
+function updateStats() {
+  if (!cachedArticles.length) {
+    $('statsEmpty').classList.remove('hidden');
+    return;
+  }
+
+  $('statsEmpty').classList.add('hidden');
+
+  const now  = new Date();
+  const day  = 24 * 3600 * 1000;
+  const week = 7 * day;
+
+  const today = cachedArticles.filter(a => now - new Date(a.date) < day).length;
+  const wk    = cachedArticles.filter(a => now - new Date(a.date) < week).length;
+  const imgs  = cachedArticles.filter(a => a.image).length;
+
+  animNum('stat-total',    cachedArticles.length);
+  animNum('stat-with-img', imgs);
+  animNum('stat-today',    today);
+  animNum('stat-week',     wk);
+}
+
+function animNum(id, target) {
+  const el = $(id);
+  const start = parseInt(el.textContent) || 0;
+  const step = Math.ceil(Math.abs(target - start) / 20) || 1;
+  let cur = start;
+  const tick = () => {
+    if (cur < target) {
+      cur = Math.min(cur + step, target);
+      el.textContent = cur;
+      requestAnimationFrame(tick);
+    } else {
+      el.textContent = target;
+    }
+  };
+  requestAnimationFrame(tick);
+}
+
+// ── Settings ──────────────────────────────────────────────────
+
+function initSettingsView() {
+  const saved = getApiUrl();
+  $('apiUrlInput').value = saved;
+  $('settingsCurrent').textContent = saved;
+  $('settingsSaved').classList.add('hidden');
+  $('testResult').classList.add('hidden');
+}
+
+function saveSettings() {
+  const val = $('apiUrlInput').value.trim();
+  setApiUrl(val);
+  $('settingsCurrent').textContent = getApiUrl();
+  $('settingsSaved').classList.remove('hidden');
+  setTimeout(() => $('settingsSaved').classList.add('hidden'), 2500);
+}
+
+function setPreset(url) {
+  $('apiUrlInput').value = url;
+  saveSettings();
+}
+
+async function testConnection() {
+  const result = $('testResult');
+  result.className = 'test-result';
+  result.classList.remove('hidden');
+  result.textContent = 'Подключение...';
+
+  try {
+    const url = $('apiUrlInput').value.trim() || getApiUrl();
+    const t0  = performance.now();
+    const res = await fetch(url, { cache: 'no-cache' });
+    const ms  = Math.round(performance.now() - t0);
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const data = await res.json();
+    const n = Array.isArray(data) ? data.length : '?';
+
+    result.className = 'test-result success';
+    result.textContent = `✓ OK — ${n} статей — ${ms}ms`;
+  } catch (e) {
+    result.className = 'test-result fail';
+    result.textContent = `✗ Ошибка: ${e.message}`;
+  }
+}
+
+// ── Utility ───────────────────────────────────────────────────
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = String(str ?? '');
+  return d.innerHTML;
+}
+
+function sanitizeUrl(url) {
+  try {
+    const u = new URL(url, window.location.href);
+    return (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : '#';
+  } catch { return '#'; }
+}
+
+function formatDate(iso) {
+  try {
+    return new Date(iso).toLocaleDateString('ru-RU', {
+      day: 'numeric', month: 'short', year: 'numeric'
+    });
+  } catch { return ''; }
+}
+
+// ── Boot ──────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+  startClock();
+  initSettingsView();
+  switchView('feed');
+  loadFeed();
+});
+
+// Expose for console debugging
+window.habrBot = { loadFeed, switchView, getApiUrl, setApiUrl };
