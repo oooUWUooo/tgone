@@ -13,6 +13,7 @@ import (
 	"habr-rss-bot/internal/config"
 	"habr-rss-bot/internal/feed"
 	"habr-rss-bot/internal/server"
+	"habr-rss-bot/internal/storage"
 )
 
 // docs/ is embedded directly into the binary — no external files needed at runtime.
@@ -34,15 +35,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	fetcher := feed.New(cfg.MaxArticles)
-	srv := server.New(cfg, fetcher, staticFS, logger)
+	fetcher := feed.New(cfg.MaxArticles, cfg.CacheTTL)
+	store := storage.New(cfg.DataFile)
+	srv := server.New(cfg, fetcher, store, staticFS, logger)
 
-	// ctx is cancelled on SIGINT / SIGTERM → triggers graceful shutdown everywhere.
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	if !cfg.WebOnly {
-		b, err := bot.New(cfg, fetcher, logger)
+		b, err := bot.New(cfg, fetcher, store, logger)
 		if err != nil {
 			logger.Error("Failed to start Telegram bot", "error", err)
 			os.Exit(1)
@@ -50,7 +51,7 @@ func main() {
 		go func() {
 			if err := b.Run(ctx); err != nil {
 				logger.Error("Bot stopped unexpectedly", "error", err)
-				cancel() // propagate failure → shut down the web server too
+				cancel()
 			}
 		}()
 	} else {
