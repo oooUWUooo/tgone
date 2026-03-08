@@ -1,92 +1,33 @@
-/* Custom styles for Habr InfoSec Bot */
-
-/* Base animations */
-.message-in {
-    animation: fadeIn 0.3s ease-out forwards;
-}
-
+.message-in { animation: fadeIn 0.3s ease-out forwards; }
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
-
-/* Skeleton loader animation */
-@keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-}
-
-.skeleton {
-    background: linear-gradient(90deg, #f1f5f9 25%, #f8fafc 50%, #f1f5f9 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite linear;
-}
-
-/* Article card specific styles */
-.article-card {
-    transition: all 0.2s ease;
-}
-
+.article-card { transition: all 0.2s ease; }
 .article-card:hover {
     border-color: #6366f1;
     transform: translateY(-2px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -2px rgba(0,0,0,.05);
 }
-
-/* Better typography for messages */
-.message-content {
-    word-break: break-word;
-}
-
-.message-content code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-
-/* Loading dots animation */
+.message-content { word-break: break-word; }
+.message-content code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 .dot-flashing {
-  position: relative;
-  width: 6px;
-  height: 6px;
-  border-radius: 5px;
-  background-color: #6366f1;
-  color: #6366f1;
-  animation: dot-flashing 1s infinite linear alternate;
-  animation-delay: .5s;
+    position: relative; width: 6px; height: 6px; border-radius: 5px;
+    background-color: #6366f1; color: #6366f1;
+    animation: dot-flashing 1s infinite linear alternate; animation-delay: .5s;
 }
 .dot-flashing::before, .dot-flashing::after {
-  content: '';
-  display: inline-block;
-  position: absolute;
-  top: 0;
+    content: ''; display: inline-block; position: absolute; top: 0;
 }
 .dot-flashing::before {
-  left: -12px;
-  width: 6px;
-  height: 6px;
-  border-radius: 5px;
-  background-color: #6366f1;
-  color: #6366f1;
-  animation: dot-flashing 1s infinite alternate;
-  animation-delay: 0s;
+    left: -12px; width: 6px; height: 6px; border-radius: 5px;
+    background-color: #6366f1; animation: dot-flashing 1s infinite alternate; animation-delay: 0s;
 }
 .dot-flashing::after {
-  left: 12px;
-  width: 6px;
-  height: 6px;
-  border-radius: 5px;
-  background-color: #6366f1;
-  color: #6366f1;
-  animation: dot-flashing 1s infinite alternate;
-  animation-delay: 1s;
+    left: 12px; width: 6px; height: 6px; border-radius: 5px;
+    background-color: #6366f1; animation: dot-flashing 1s infinite alternate; animation-delay: 1s;
 }
-
 @keyframes dot-flashing {
-  0% { background-color: #6366f1; }
-  50%, 100% { background-color: #e2e8f0; }
+    0% { background-color: #6366f1; }
+    50%, 100% { background-color: #e2e8f0; }
 }
