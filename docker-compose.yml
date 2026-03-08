@@ -1,0 +1,76 @@
+# docker-compose.yml
+#
+# Spin up as many bot instances as you need.
+# Each service = one independent Telegram bot + its own web UI.
+#
+# Quick start (two bots):
+#   cp .env.example .env          # fill in BOT1_TOKEN and BOT2_TOKEN
+#   docker compose up -d --build
+#
+# Add a third bot:
+#   1. Duplicate the bot-2 block, name it bot-3
+#   2. Add BOT3_TOKEN and BOT3_PORT to your .env
+#   3. docker compose up -d --build bot-3
+
+version: "3.9"
+
+# ── Shared defaults ─────────────────────────────────────────────────────────────
+x-bot-defaults: &bot-defaults
+  build: .
+  restart: unless-stopped
+  environment:
+    MAX_ARTICLES: "10"
+    ARTICLE_EXPIRY_HOURS: "24"
+    PORT: "8080"
+    FEED_URL: "https://habr.com/ru/rss/hub/infosecurity/all/?fl=ru"
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
+
+# ── Bot instances ───────────────────────────────────────────────────────────────
+services:
+
+  bot-1:
+    <<: *bot-defaults
+    container_name: habr-bot-1
+    environment:
+      TELEGRAM_BOT_TOKEN: "${BOT1_TOKEN}"
+      BOT_NAME: "InfoSecBot1"
+      PORT: "8080"
+      MAX_ARTICLES: "10"
+      ARTICLE_EXPIRY_HOURS: "24"
+      FEED_URL: "https://habr.com/ru/rss/hub/infosecurity/all/?fl=ru"
+    ports:
+      - "${BOT1_PORT:-8081}:8080"
+
+  bot-2:
+    <<: *bot-defaults
+    container_name: habr-bot-2
+    environment:
+      TELEGRAM_BOT_TOKEN: "${BOT2_TOKEN}"
+      BOT_NAME: "InfoSecBot2"
+      PORT: "8080"
+      MAX_ARTICLES: "10"
+      ARTICLE_EXPIRY_HOURS: "24"
+      FEED_URL: "https://habr.com/ru/rss/hub/infosecurity/all/?fl=ru"
+    ports:
+      - "${BOT2_PORT:-8082}:8080"
+
+  # ── Template for bot-3, bot-4, … ─────────────────────────────────────────────
+  # Uncomment and fill in to add more instances:
+  #
+  # bot-3:
+  #   <<: *bot-defaults
+  #   container_name: habr-bot-3
+  #   environment:
+  #     TELEGRAM_BOT_TOKEN: "${BOT3_TOKEN}"
+  #     BOT_NAME: "InfoSecBot3"
+  #     PORT: "8080"
+  #     MAX_ARTICLES: "10"
+  #     ARTICLE_EXPIRY_HOURS: "24"
+  #     FEED_URL: "https://habr.com/ru/rss/hub/infosecurity/all/?fl=ru"
+  #   ports:
+  #     - "${BOT3_PORT:-8083}:8080"

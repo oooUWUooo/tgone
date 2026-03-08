@@ -1,150 +1,233 @@
 <!DOCTYPE html>
-<html lang="ru" class="h-full">
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Habr InfoSec Bot</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="styles.css">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
-        .message-in { animation: slideIn 0.3s ease-out; }
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HABR INFOSEC — Лента угроз</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Serif+Display:ital@0;1&family=Mulish:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
-<body class="h-full bg-slate-50 text-slate-900 overflow-hidden">
-    <div class="flex h-full max-w-6xl mx-auto bg-white shadow-2xl overflow-hidden md:my-4 md:rounded-2xl border border-slate-200">
-        <!-- Sidebar -->
-        <aside class="hidden md:flex flex-col w-80 border-r border-slate-100 bg-slate-50/50">
-            <div class="p-6 border-b border-slate-100">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-                        <i data-lucide="shield-check" class="w-6 h-6"></i>
-                    </div>
-                    <div>
-                        <h1 class="font-bold text-lg tracking-tight">Habr InfoSec</h1>
-                        <p class="text-xs text-slate-500 font-medium uppercase tracking-wider">RSS News Bot</p>
-                    </div>
-                </div>
-            </div>
+<body>
 
-            <div class="flex-1 overflow-y-auto p-6 space-y-8">
-                <section>
-                    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">О проекте</h2>
-                    <p class="text-sm text-slate-600 leading-relaxed">
-                        Этот бот агрегирует последние новости из раздела «Информационная безопасность» на Хабре. Будьте в курсе новейших уязвимостей и технологий защиты.
-                    </p>
-                </section>
+  <!-- Scanline overlay -->
+  <div class="scanlines" aria-hidden="true"></div>
+  <!-- Noise grain -->
+  <div class="grain" aria-hidden="true"></div>
 
-                <section>
-                    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Команды</h2>
-                    <div class="space-y-2">
-                        <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all cursor-pointer group">
-                            <code class="text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded">/infosec</code>
-                            <span class="text-sm text-slate-600 group-hover:text-slate-900 transition-colors">Свежие статьи</span>
-                        </div>
-                        <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all cursor-pointer group">
-                            <code class="text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded">/help</code>
-                            <span class="text-sm text-slate-600 group-hover:text-slate-900 transition-colors">Помощь</span>
-                        </div>
-                    </div>
-                </section>
-
-                <section>
-                    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Статус</h2>
-                    <div class="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-full w-fit">
-                        <span class="relative flex h-2 w-2">
-                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                        </span>
-                        <span class="text-xs font-bold uppercase tracking-wide">Онлайн</span>
-                    </div>
-                </section>
-            </div>
-
-            <div class="p-6 border-t border-slate-100 text-[10px] text-slate-400 text-center">
-                &copy; 2024 Habr InfoSec RSS Bot
-            </div>
-        </aside>
-
-        <!-- Main Chat Area -->
-        <main class="flex-1 flex flex-col h-full bg-white relative">
-            <!-- Header -->
-            <header class="glass sticky top-0 z-10 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <div class="md:hidden w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
-                        <i data-lucide="shield-check" class="w-6 h-6"></i>
-                    </div>
-                    <div>
-                        <h2 class="font-bold text-slate-900">Новости ИБ</h2>
-                        <div class="flex items-center gap-1.5">
-                            <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                            <span class="text-xs text-slate-500">Бот активен</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Очистить чат" id="clearChat">
-                        <i data-lucide="trash-2" class="w-5 h-5"></i>
-                    </button>
-                    <button class="md:hidden p-2 text-slate-400" id="menuToggle">
-                        <i data-lucide="menu" class="w-6 h-6"></i>
-                    </button>
-                </div>
-            </header>
-
-            <!-- Messages -->
-            <div id="chatMessages" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar scroll-smooth">
-                <!-- Welcome Message -->
-                <div class="flex gap-3 max-w-[85%] message-in">
-                    <div class="flex-shrink-0 w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500">
-                        <i data-lucide="bot" class="w-5 h-5"></i>
-                    </div>
-                    <div class="bg-slate-100 text-slate-800 p-4 rounded-2xl rounded-tl-none shadow-sm">
-                        <p class="text-sm leading-relaxed">
-                            Привет! Я профессиональный агрегатор новостей информационной безопасности с Хабра.
-                            Введите <code class="bg-white/50 px-1 rounded">/infosec</code> чтобы получить подборку последних статей.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Input Area -->
-            <footer class="p-4 md:p-6 bg-white border-t border-slate-100">
-                <div class="relative flex items-center">
-                    <input
-                        type="text"
-                        id="messageInput"
-                        placeholder="Введите команду..."
-                        class="w-full pl-4 pr-14 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
-                    >
-                    <button
-                        id="sendButton"
-                        class="absolute right-2 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all disabled:opacity-50 disabled:shadow-none"
-                    >
-                        <i data-lucide="send" class="w-5 h-5"></i>
-                    </button>
-                </div>
-                <p class="mt-3 text-[10px] text-center text-slate-400 uppercase tracking-widest font-medium">
-                    Нажмите Enter чтобы отправить
-                </p>
-            </footer>
-        </main>
+  <!-- Top ticker bar -->
+  <div class="ticker-bar" id="tickerBar">
+    <span class="ticker-label">LIVE FEED</span>
+    <div class="ticker-track">
+      <div class="ticker-content" id="tickerContent">
+        <span>Загрузка ленты угроз...</span>
+      </div>
     </div>
+    <span class="ticker-time" id="tickerTime">--:--:--</span>
+  </div>
 
-    <script src="script.js"></script>
-    <script>
-        lucide.createIcons();
-    </script>
+  <!-- Site header -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="header-brand">
+        <div class="brand-icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <polygon points="14,2 26,8 26,20 14,26 2,20 2,8" stroke="#e63946" stroke-width="1.5" fill="none"/>
+            <polygon points="14,7 21,11 21,19 14,23 7,19 7,11" stroke="#e63946" stroke-width="1" fill="none" opacity="0.5"/>
+            <circle cx="14" cy="15" r="2.5" fill="#e63946"/>
+            <line x1="14" y1="7" x2="14" y2="12.5" stroke="#e63946" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">HABR<span class="brand-accent">SEC</span></h1>
+          <p class="brand-sub">Threat Intelligence Feed</p>
+        </div>
+      </div>
+
+      <nav class="header-nav">
+        <button class="nav-btn active" data-view="feed" onclick="switchView('feed')">
+          <span class="nav-dot"></span>Лента
+        </button>
+        <button class="nav-btn" data-view="stats" onclick="switchView('stats')">
+          <span class="nav-dot"></span>Статистика
+        </button>
+        <button class="nav-btn" data-view="settings" onclick="switchView('settings')">
+          <span class="nav-dot"></span>Настройки
+        </button>
+      </nav>
+
+      <div class="header-status">
+        <div class="status-pill" id="statusPill">
+          <span class="status-dot"></span>
+          <span class="status-text" id="statusText">Подключение...</span>
+        </div>
+        <button class="refresh-btn" onclick="loadFeed()" title="Обновить">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6M1 20v-6h6"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main content -->
+  <main class="main-content">
+
+    <!-- ── FEED VIEW ──────────────────────────────────────────────── -->
+    <section id="viewFeed" class="view active">
+      <div class="feed-layout">
+
+        <!-- Articles grid -->
+        <div class="articles-area">
+          <div class="section-header">
+            <span class="section-label">// СТАТЬИ</span>
+            <span class="article-count" id="articleCount">—</span>
+          </div>
+
+          <!-- Loading skeleton -->
+          <div id="loadingState" class="loading-grid">
+            <div class="skeleton-card" style="--i:0"><div class="sk-img"></div><div class="sk-tag"></div><div class="sk-title"></div><div class="sk-title short"></div><div class="sk-body"></div><div class="sk-body short"></div></div>
+            <div class="skeleton-card" style="--i:1"><div class="sk-img"></div><div class="sk-tag"></div><div class="sk-title"></div><div class="sk-title short"></div><div class="sk-body"></div><div class="sk-body short"></div></div>
+            <div class="skeleton-card" style="--i:2"><div class="sk-img"></div><div class="sk-tag"></div><div class="sk-title"></div><div class="sk-title short"></div><div class="sk-body"></div><div class="sk-body short"></div></div>
+          </div>
+
+          <!-- Error state -->
+          <div id="errorState" class="error-state hidden">
+            <div class="error-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <h3 class="error-title">Нет соединения с API</h3>
+            <p class="error-msg" id="errorMsg">Убедитесь, что сервер запущен, или настройте URL в разделе Настройки.</p>
+            <button class="btn-primary" onclick="loadFeed()">Повторить</button>
+          </div>
+
+          <!-- Articles grid -->
+          <div id="articlesGrid" class="articles-grid hidden"></div>
+        </div>
+
+        <!-- Sidebar -->
+        <aside class="feed-sidebar">
+          <div class="sidebar-widget">
+            <div class="widget-title">// СТАТУС</div>
+            <div class="stat-row"><span>API</span><span class="stat-val" id="apiStatusVal">—</span></div>
+            <div class="stat-row"><span>Последнее обновление</span><span class="stat-val" id="lastUpdateVal">—</span></div>
+            <div class="stat-row"><span>Статей загружено</span><span class="stat-val" id="loadedCount">—</span></div>
+          </div>
+
+          <div class="sidebar-widget">
+            <div class="widget-title">// КОМАНДЫ</div>
+            <div class="cmd-list">
+              <button class="cmd-item" onclick="loadFeed()">
+                <code>/infosec</code>
+                <span>Обновить ленту</span>
+              </button>
+              <button class="cmd-item" onclick="switchView('stats')">
+                <code>/stats</code>
+                <span>Статистика</span>
+              </button>
+              <button class="cmd-item" onclick="switchView('settings')">
+                <code>/config</code>
+                <span>Настройки API</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="sidebar-widget">
+            <div class="widget-title">// О ПРОЕКТЕ</div>
+            <p class="widget-text">
+              Агрегатор статей по информационной безопасности с&nbsp;Хабра.
+              Данные поступают через RSS&#8209;ленту хаба&nbsp;<em>infosecurity</em>.
+            </p>
+            <a href="https://habr.com/ru/hub/infosecurity/" target="_blank" rel="noopener" class="widget-link">
+              Открыть хаб на Хабре →
+            </a>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ── STATS VIEW ─────────────────────────────────────────────── -->
+    <section id="viewStats" class="view hidden">
+      <div class="section-header">
+        <span class="section-label">// СТАТИСТИКА ЛЕНТЫ</span>
+      </div>
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="stat-card-num" id="stat-total">—</div><div class="stat-card-label">Статей в ленте</div></div>
+        <div class="stat-card"><div class="stat-card-num" id="stat-with-img">—</div><div class="stat-card-label">С изображением</div></div>
+        <div class="stat-card"><div class="stat-card-num" id="stat-today">—</div><div class="stat-card-label">За сегодня</div></div>
+        <div class="stat-card"><div class="stat-card-num" id="stat-week">—</div><div class="stat-card-label">За неделю</div></div>
+      </div>
+      <div id="statsEmpty" class="stats-empty hidden">
+        <p>Загрузите ленту чтобы увидеть статистику.</p>
+        <button class="btn-primary" onclick="loadFeed(); switchView('feed')">Загрузить</button>
+      </div>
+    </section>
+
+    <!-- ── SETTINGS VIEW ──────────────────────────────────────────── -->
+    <section id="viewSettings" class="view hidden">
+      <div class="section-header">
+        <span class="section-label">// КОНФИГУРАЦИЯ</span>
+      </div>
+      <div class="settings-panel">
+        <div class="settings-group">
+          <label class="settings-label" for="apiUrlInput">URL API-сервера</label>
+          <p class="settings-hint">
+            При запуске через Docker оставьте <code>/api/articles</code>.
+            Для GitHub Pages укажите полный URL задеплоенного сервера.
+          </p>
+          <div class="settings-input-row">
+            <input type="text" id="apiUrlInput" class="settings-input" placeholder="https://your-server.example.com/api/articles">
+            <button class="btn-primary" onclick="saveSettings()">Сохранить</button>
+          </div>
+          <div class="settings-presets">
+            <span class="preset-label">Быстрые варианты:</span>
+            <button class="preset-btn" onclick="setPreset('/api/articles')">Локальный</button>
+            <button class="preset-btn" onclick="setPreset('http://localhost:8081/api/articles')">Docker :8081</button>
+            <button class="preset-btn" onclick="setPreset('http://localhost:8082/api/articles')">Docker :8082</button>
+          </div>
+          <div class="settings-saved hidden" id="settingsSaved">✓ Настройки сохранены</div>
+        </div>
+
+        <div class="settings-group">
+          <label class="settings-label">Текущий URL</label>
+          <code class="settings-current" id="settingsCurrent">/api/articles</code>
+        </div>
+
+        <div class="settings-group">
+          <label class="settings-label">Проверка соединения</label>
+          <div class="settings-input-row">
+            <button class="btn-secondary" onclick="testConnection()">Тест соединения</button>
+          </div>
+          <div class="test-result hidden" id="testResult"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Article modal -->
+  <div class="modal-overlay hidden" id="modalOverlay" onclick="closeModal()">
+    <article class="modal-card" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="closeModal()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-img-wrap" id="modalImg"></div>
+      <div class="modal-body">
+        <div class="modal-meta" id="modalMeta"></div>
+        <h2 class="modal-title" id="modalTitle"></h2>
+        <p class="modal-summary" id="modalSummary"></p>
+        <a class="btn-primary modal-cta" id="modalLink" target="_blank" rel="noopener">
+          Читать на Хабре
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+      </div>
+    </article>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
