@@ -47,6 +47,24 @@ var All = []Hub{
 		Emoji: "🐧",
 		URL:   "https://habr.com/ru/rss/hub/linux/all/?fl=ru",
 	},
+	{
+		ID:    "golang",
+		Name:  "Go",
+		Emoji: "🐹",
+		URL:   "https://habr.com/ru/rss/hub/go/all/?fl=ru",
+	},
+	{
+		ID:    "python",
+		Name:  "Python",
+		Emoji: "🐍",
+		URL:   "https://habr.com/ru/rss/hub/python/all/?fl=ru",
+	},
+	{
+		ID:    "machine_learning",
+		Name:  "Машинное обучение",
+		Emoji: "🤖",
+		URL:   "https://habr.com/ru/rss/hub/machine_learning/all/?fl=ru",
+	},
 }
 
 // DefaultHub is used when no hub is specified by the caller.
