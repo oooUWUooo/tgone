@@ -133,13 +133,14 @@ func trimSummary(s string, maxLen int) string {
 	return s
 }
 
-// estimateReadingTime returns a rough reading-time in minutes at 200 wpm.
+// estimateReadingTime returns a rough reading-time in minutes at 160 wpm,
+// which is a more accurate estimate for Russian technical content.
 func estimateReadingTime(text string) int {
 	words := len(strings.Fields(text))
 	if words == 0 {
 		return 1
 	}
-	if m := words / 200; m >= 1 {
+	if m := words / 160; m >= 1 {
 		return m
 	}
 	return 1
