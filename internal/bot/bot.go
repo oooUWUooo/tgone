@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"html"
 	"log/slog"
+	"math/rand"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -81,6 +83,9 @@ func (b *Bot) Run(ctx context.Context) error {
 			}
 			if update.Message != nil {
 				go b.handleMessage(update.Message)
+			}
+			if update.CallbackQuery != nil {
+				go b.handleCallback(update.CallbackQuery)
 			}
 		}
 	}
@@ -285,6 +290,10 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		} else {
 			b.handleFeed(msg.Chat.ID, arg)
 		}
+	case "/new":
+		b.handleNew(msg.Chat.ID)
+	case "/random":
+		b.handleRandom(msg.Chat.ID, arg)
 	case "/search":
 		if arg == "" {
 			b.sendText(msg.Chat.ID, "Укажите запрос: /search уязвимость")
@@ -307,6 +316,8 @@ func (b *Bot) handleStart(chatID int64) {
 		"👋 <b>Привет! Я агрегатор новостей с Хабра.</b>\n\n"+
 			"Читаю хабы: ИБ, DevOps, Linux, веб-разработку, Go, Python, ML и другие.\n\n"+
 			"<b>Основные команды:</b>\n"+
+			"/new — свежие статьи из всех хабов\n"+
+			"/random — случайная статья\n"+
 			"/infosec — статьи по информационной безопасности\n"+
 			"/hubs — список всех доступных хабов\n"+
 			"/hub <i>devops</i> — статьи из конкретного хаба\n"+
@@ -321,8 +332,10 @@ func (b *Bot) handleStart(chatID int64) {
 func (b *Bot) handleHelp(chatID int64) {
 	b.sendHTML(chatID,
 		"<b>Команды:</b>\n\n"+
+			"/new — свежие статьи из всех хабов (топ 10 по дате)\n"+
+			"/random [<i>hub_id</i>] — случайная статья (опционально из хаба)\n\n"+
 			"/infosec — статьи по ИБ (сокращение для /hub infosec)\n"+
-			"/hubs — список всех хабов\n"+
+			"/hubs — список всех хабов с кнопками\n"+
 			"/hub <i>id</i> — статьи хаба\n"+
 			"  доступные id: infosec, devops, webdev, programming,\n"+
 			"  sysadm, linux, golang, python, machine_learning\n\n"+
@@ -336,11 +349,29 @@ func (b *Bot) handleHelp(chatID int64) {
 }
 
 func (b *Bot) handleHubs(chatID int64) {
-	lines := []string{"<b>Доступные хабы:</b>\n"}
-	for _, h := range hub.All {
-		lines = append(lines, fmt.Sprintf("%s <code>/hub %s</code> — %s", h.Emoji, h.ID, h.Name))
+	// Build inline keyboard — 2 hubs per row for readability
+	var rows [][]tgbotapi.InlineKeyboardButton
+	hubs := hub.All
+	for i := 0; i < len(hubs); i += 2 {
+		btn1 := tgbotapi.NewInlineKeyboardButtonData(
+			hubs[i].Emoji+" "+hubs[i].Name, "hub:"+hubs[i].ID,
+		)
+		row := []tgbotapi.InlineKeyboardButton{btn1}
+		if i+1 < len(hubs) {
+			btn2 := tgbotapi.NewInlineKeyboardButtonData(
+				hubs[i+1].Emoji+" "+hubs[i+1].Name, "hub:"+hubs[i+1].ID,
+			)
+			row = append(row, btn2)
+		}
+		rows = append(rows, row)
 	}
-	b.sendHTML(chatID, strings.Join(lines, "\n"))
+
+	msg := tgbotapi.NewMessage(chatID, "📚 <b>Выберите хаб:</b>")
+	msg.ParseMode = "HTML"
+	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
+	if _, err := b.api.Send(msg); err != nil {
+		b.logger.Error("handleHubs: send failed", "error", err)
+	}
 }
 
 func (b *Bot) handleFeed(chatID int64, hubID string) {
@@ -418,6 +449,108 @@ func (b *Bot) handleSearch(chatID int64, query string) {
 	}
 	if len(results) > limit {
 		b.sendText(chatID, fmt.Sprintf("...и ещё %d статей. Уточните запрос.", len(results)-limit))
+	}
+}
+
+func (b *Bot) handleNew(chatID int64) {
+	loading, _ := b.api.Send(tgbotapi.NewMessage(chatID, "⏳ Собираю свежее из всех хабов..."))
+
+	var all []feed.Article
+	for _, h := range hub.All {
+		articles, err := b.fetcher.Fetch(h.ID, h.URL)
+		if err != nil {
+			continue
+		}
+		all = append(all, articles...)
+	}
+	b.deleteMsg(chatID, loading.MessageID)
+
+	if len(all) == 0 {
+		b.sendText(chatID, "Статей не найдено.")
+		return
+	}
+
+	// Sort newest-first by publication date
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].Date.After(all[j].Date)
+	})
+
+	const limit = 10
+	top := all
+	if len(top) > limit {
+		top = top[:limit]
+	}
+
+	header := fmt.Sprintf("🆕 <b>Свежее с Хабра</b> — топ %d по дате", len(top))
+	msg := tgbotapi.NewMessage(chatID, header)
+	msg.ParseMode = "HTML"
+	b.api.Send(msg)
+	time.Sleep(150 * time.Millisecond)
+
+	for _, a := range top {
+		if err := b.sendArticle(chatID, a); err != nil {
+			b.logger.Error("handleNew: send failed", "error", err)
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+}
+
+func (b *Bot) handleRandom(chatID int64, hubID string) {
+	var articles []feed.Article
+
+	if hubID != "" {
+		h, ok := hub.ByID(hubID)
+		if !ok {
+			b.sendText(chatID, fmt.Sprintf("Хаб «%s» не найден. Список: /hubs", hubID))
+			return
+		}
+		var err error
+		articles, err = b.fetcher.Fetch(h.ID, h.URL)
+		if err != nil {
+			b.sendText(chatID, "Ошибка при получении статей. Попробуйте позже.")
+			return
+		}
+	} else {
+		// Pool articles from all hubs
+		for _, h := range hub.All {
+			arts, err := b.fetcher.Fetch(h.ID, h.URL)
+			if err != nil {
+				continue
+			}
+			articles = append(articles, arts...)
+		}
+	}
+
+	if len(articles) == 0 {
+		b.sendText(chatID, "Статей не найдено.")
+		return
+	}
+
+	a := articles[rand.Intn(len(articles))]
+	b.sendHTML(chatID, "🎲 <b>Случайная статья:</b>")
+	time.Sleep(150 * time.Millisecond)
+	if err := b.sendArticle(chatID, a); err != nil {
+		b.logger.Error("handleRandom: send failed", "error", err)
+	}
+}
+
+// handleCallback processes inline keyboard button presses.
+func (b *Bot) handleCallback(cb *tgbotapi.CallbackQuery) {
+	// Always acknowledge the callback to stop the loading spinner in Telegram
+	b.api.AnswerCallbackQuery(tgbotapi.NewCallback(cb.ID, ""))
+
+	if cb.Message == nil {
+		return
+	}
+
+	parts := strings.SplitN(cb.Data, ":", 2)
+	if len(parts) != 2 {
+		return
+	}
+
+	switch parts[0] {
+	case "hub":
+		b.handleFeed(cb.Message.Chat.ID, parts[1])
 	}
 }
 
