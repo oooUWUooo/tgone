@@ -255,6 +255,7 @@ func (b *Bot) cleanup() {
 
 func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 	if !b.limiter.Allow() {
+		b.sendText(msg.Chat.ID, "⏱ Слишком много запросов. Подождите секунду и попробуйте снова.")
 		return
 	}
 
@@ -294,6 +295,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		b.handleSubscribe(msg.Chat.ID, arg)
 	case "/unsubscribe":
 		b.handleUnsubscribe(msg.Chat.ID)
+	case "/status":
+		b.handleStatus(msg.Chat.ID)
 	default:
 		b.sendText(msg.Chat.ID, "Неизвестная команда. Введите /help для справки.")
 	}
@@ -302,7 +305,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 func (b *Bot) handleStart(chatID int64) {
 	b.sendHTML(chatID,
 		"👋 <b>Привет! Я агрегатор новостей с Хабра.</b>\n\n"+
-			"Читаю хабы: ИБ, DevOps, Linux, веб-разработку и другие.\n\n"+
+			"Читаю хабы: ИБ, DevOps, Linux, веб-разработку, Go, Python, ML и другие.\n\n"+
 			"<b>Основные команды:</b>\n"+
 			"/infosec — статьи по информационной безопасности\n"+
 			"/hubs — список всех доступных хабов\n"+
@@ -310,6 +313,7 @@ func (b *Bot) handleStart(chatID int64) {
 			"/search <i>запрос</i> — поиск по заголовкам и текстам\n"+
 			"/subscribe — подписаться на авто-обновления\n"+
 			"/unsubscribe — отписаться\n"+
+			"/status — статус вашей подписки\n"+
 			"/help — справка",
 	)
 }
@@ -320,11 +324,13 @@ func (b *Bot) handleHelp(chatID int64) {
 			"/infosec — статьи по ИБ (сокращение для /hub infosec)\n"+
 			"/hubs — список всех хабов\n"+
 			"/hub <i>id</i> — статьи хаба\n"+
-			"  доступные id: infosec, devops, webdev, programming, sysadm, linux\n\n"+
+			"  доступные id: infosec, devops, webdev, programming,\n"+
+			"  sysadm, linux, golang, python, machine_learning\n\n"+
 			"/search <i>запрос</i> — поиск по всем хабам\n\n"+
 			"/subscribe [<i>hub1 hub2 ...</i>] — подписка на авто-обновления\n"+
 			"  без аргументов — подписка на infosec\n"+
-			"/unsubscribe — отписаться\n\n"+
+			"/unsubscribe — отписаться\n"+
+			"/status — проверить статус подписки\n\n"+
 			"/help — это сообщение",
 	)
 }
@@ -467,6 +473,34 @@ func (b *Bot) handleUnsubscribe(chatID int64) {
 	} else {
 		b.sendText(chatID, "Вы не были подписаны.")
 	}
+}
+
+func (b *Bot) handleStatus(chatID int64) {
+	sub := b.store.Get(chatID)
+	if sub == nil {
+		b.sendHTML(chatID,
+			"❌ <b>Подписка не активна.</b>\n\n"+
+				"Чтобы подписаться: /subscribe\n"+
+				"Список хабов: /hubs",
+		)
+		return
+	}
+	names := make([]string, 0, len(sub.HubIDs))
+	for _, hid := range sub.HubIDs {
+		if h, ok := hub.ByID(hid); ok {
+			names = append(names, h.Emoji+" "+h.Name)
+		}
+	}
+	b.sendHTML(chatID, fmt.Sprintf(
+		"✅ <b>Подписка активна</b>\n\n"+
+			"Хабы: %s\n\n"+
+			"Активна с: %s\n"+
+			"Обновления каждые ~%d мин.\n\n"+
+			"Отписаться: /unsubscribe",
+		strings.Join(names, ", "),
+		sub.CreatedAt.Format("02.01.2006"),
+		int(b.cfg.PollInterval.Minutes()),
+	))
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
