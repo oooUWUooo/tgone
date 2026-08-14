@@ -185,8 +185,6 @@ func (s *Server) StatsHandler(statsProvider StatsProvider) http.HandlerFunc {
 // UsersHandler handles user-related endpoints
 func (s *Server) UsersHandler(userProvider UserProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		
 		switch r.Method {
 		case http.MethodGet:
 			s.handleGetUsers(w, r, userProvider)
@@ -262,8 +260,6 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request, provid
 // SubscriptionsHandler handles subscription-related endpoints
 func (s *Server) SubscriptionsHandler(subProvider SubscriptionProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		
 		switch r.Method {
 		case http.MethodGet:
 			s.handleGetSubscriptions(w, r, subProvider)

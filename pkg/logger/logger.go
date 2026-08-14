@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"runtime"
 	"strings"
@@ -25,13 +24,14 @@ const (
 
 // Logger is a structured logger with context support
 type Logger struct {
-	handler    slog.Handler
-	slogger    *slog.Logger
 	service    string
 	version    string
 	instanceID string
 	mu         sync.RWMutex
 	fields     map[string]interface{}
+	output     io.Writer
+	level      Level
+	json       bool
 }
 
 // Config holds logger configuration
@@ -62,31 +62,20 @@ func New(cfg *Config) *Logger {
 		cfg = DefaultConfig()
 	}
 
-	var handler slog.Handler
-	opts := &slog.HandlerOptions{
-		Level: getLogLevel(cfg.Level),
-		AddSource: true,
-	}
-
-	if cfg.JSON {
-		handler = slog.NewJSONHandler(cfg.Output, opts)
-	} else {
-		handler = slog.NewTextHandler(cfg.Output, opts)
-	}
-
 	logger := &Logger{
-		handler:    handler,
-		slogger:    slog.New(handler),
 		service:    cfg.Service,
 		version:    cfg.Version,
 		instanceID: cfg.InstanceID,
 		fields:     make(map[string]interface{}),
+		output:     cfg.Output,
+		level:      cfg.Level,
+		json:       cfg.JSON,
 	}
 
 	// Add default fields
-	logger.WithField("service", cfg.Service)
-	logger.WithField("version", cfg.Version)
-	logger.WithField("instance_id", cfg.InstanceID)
+	logger.fields["service"] = cfg.Service
+	logger.fields["version"] = cfg.Version
+	logger.fields["instance_id"] = cfg.InstanceID
 
 	return logger
 }
@@ -117,12 +106,13 @@ func (l *Logger) WithContext(ctx context.Context) *Logger {
 
 	// Extract common context values
 	newLogger := &Logger{
-		handler:    l.handler,
-		slogger:    l.slogger,
 		service:    l.service,
 		version:    l.version,
 		instanceID: l.instanceID,
 		fields:     make(map[string]interface{}),
+		output:     l.output,
+		level:      l.level,
+		json:       l.json,
 	}
 
 	// Copy existing fields
@@ -146,17 +136,24 @@ func (l *Logger) WithContext(ctx context.Context) *Logger {
 
 // Debug logs a debug message
 func (l *Logger) Debug(msg string, args ...interface{}) {
+	if l.level != LevelDebug {
+		return
+	}
 	l.log(LevelDebug, msg, args...)
 }
 
 // Info logs an info message
 func (l *Logger) Info(msg string, args ...interface{}) {
-	l.log(LevelInfo, msg, args...)
+	if l.level == LevelDebug || l.level == LevelInfo {
+		l.log(LevelInfo, msg, args...)
+	}
 }
 
 // Warn logs a warning message
 func (l *Logger) Warn(msg string, args ...interface{}) {
-	l.log(LevelWarn, msg, args...)
+	if l.level == LevelDebug || l.level == LevelInfo || l.level == LevelWarn {
+		l.log(LevelWarn, msg, args...)
+	}
 }
 
 // Error logs an error message
@@ -181,71 +178,73 @@ func (l *Logger) Fatal(msg string, err error, args ...interface{}) {
 	os.Exit(1)
 }
 
-func (l *Logger) log(level Level, msg string, args []interface{}) {
+func (l *Logger) log(level Level, msg string, args ...interface{}) {
 	l.mu.RLock()
-	fields := make([]interface{}, 0, len(l.fields)*2)
+	fields := make([]interface{}, 0, len(l.fields)*2+4)
+	
+	// Add predefined fields
+	fields = append(fields, "ts", time.Now().Format(time.RFC3339))
+	fields = append(fields, "level", string(level))
+	fields = append(fields, "msg", msg)
+	fields = append(fields, "caller", GetCallerInfo())
+	
+	// Add user fields
 	for k, v := range l.fields {
 		fields = append(fields, k, v)
 	}
 	l.mu.RUnlock()
 
 	fields = append(fields, args...)
-	fields = append(fields, "level", string(level))
 
-	switch level {
-	case LevelDebug:
-		l.slogger.Debug(msg, fields...)
-	case LevelInfo:
-		l.slogger.Info(msg, fields...)
-	case LevelWarn:
-		l.slogger.Warn(msg, fields...)
-	case LevelError, LevelCritical:
-		l.slogger.Error(msg, fields...)
+	// Format and write the log line
+	var line string
+	if l.json {
+		line = l.formatJSON(fields)
+	} else {
+		line = l.formatText(fields)
 	}
+	
+	fmt.Fprintln(l.output, line)
 }
 
-// GetSlogger returns the underlying slog logger
-func (l *Logger) GetSlogger() *slog.Logger {
-	return l.slogger
+func (l *Logger) formatText(fields []interface{}) string {
+	var parts []string
+	for i := 0; i < len(fields); i += 2 {
+		if i+1 < len(fields) {
+			parts = append(parts, fmt.Sprintf("%s=%v", fields[i], fields[i+1]))
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func (l *Logger) formatJSON(fields []interface{}) string {
+	// Simple JSON formatting without external dependencies
+	var pairs []string
+	for i := 0; i < len(fields); i += 2 {
+		if i+1 < len(fields) {
+			key, ok := fields[i].(string)
+			if !ok {
+				key = fmt.Sprintf("%v", fields[i])
+			}
+			value := fmt.Sprintf("%v", fields[i+1])
+			// Escape quotes in value
+			value = strings.ReplaceAll(value, "\"", "\\\"")
+			pairs = append(pairs, fmt.Sprintf("\"%s\":\"%s\"", key, value))
+		}
+	}
+	return "{" + strings.Join(pairs, ",") + "}"
+}
+
+// GetSlogger returns nil for compatibility (slog removed)
+func (l *Logger) GetSlogger() interface{} {
+	return nil
 }
 
 // SetLevel dynamically changes the log level
 func (l *Logger) SetLevel(level Level) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	
-	// Re-create handler with new level
-	opts := &slog.HandlerOptions{
-		Level: getLogLevel(level),
-		AddSource: true,
-	}
-	
-	var handler slog.Handler
-	if _, ok := l.handler.(*slog.JSONHandler); ok {
-		handler = slog.NewJSONHandler(os.Stdout, opts)
-	} else {
-		handler = slog.NewTextHandler(os.Stdout, opts)
-	}
-	
-	l.handler = handler
-	l.slogger = slog.New(handler)
-}
-
-func getLogLevel(level Level) slog.Level {
-	switch level {
-	case LevelDebug:
-		return slog.LevelDebug
-	case LevelInfo:
-		return slog.LevelInfo
-	case LevelWarn:
-		return slog.LevelWarn
-	case LevelError:
-		return slog.LevelError
-	case LevelCritical:
-		return slog.LevelError + 4
-	default:
-		return slog.LevelInfo
-	}
+	l.level = level
 }
 
 func getInstanceID() string {
