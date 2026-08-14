@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  habr-rss-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: habr-rss-bot
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - PORT=8080
+      - HABR_RSS_URL=https://habr.com/ru/rss/hub/infosecurity/all/?fl=ru
+      - MAX_ARTICLES=10
+      - ARTICLE_EXPIRY=24h
+      - CLEANUP_INTERVAL=1h
+      - RATE_LIMIT_EVERY=1s
+      - RATE_LIMIT_BURST=5
+      - HTTP_TIMEOUT=30s
+      - LOG_LEVEL=info
+    volumes:
+      - habr-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - habr-network
+
+volumes:
+  habr-data:
+    driver: local
+
+networks:
+  habr-network:
+    driver: bridge

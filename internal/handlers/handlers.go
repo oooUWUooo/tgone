@@ -163,6 +163,7 @@ func (h *APIHandler) HandleArticles(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Content-Type", "application/json")
 
 	if r.Method == "OPTIONS" {
 		return
@@ -181,33 +182,27 @@ func (h *APIHandler) HandleArticles(w http.ResponseWriter, r *http.Request) {
 			Success: false,
 			Error:   "Failed to fetch articles",
 		}
-		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	response := models.APIResponse{
-		Success: true,
-		Data:    articles,
+	// Return articles directly for frontend compatibility
+	// Frontend expects an array, not a wrapped response
+	if len(articles) == 0 {
+		json.NewEncoder(w).Encode([]models.Article{})
+		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Error encoding response: %v", err)
-	}
+	json.NewEncoder(w).Encode(articles)
 }
 
 // HandleHealth handles GET /api/health requests
 func (h *APIHandler) HandleHealth(w http.ResponseWriter, r *http.Request) {
-	response := models.APIResponse{
-		Success: true,
-		Data: map[string]interface{}{
-			"status": "healthy",
-			"version": "2.0.0",
-		},
-	}
-
 	w.Header().Set("Content-Type", "application/json")
+	response := map[string]interface{}{
+		"status":  "healthy",
+		"version": "2.0.0",
+	}
 	json.NewEncoder(w).Encode(response)
 }

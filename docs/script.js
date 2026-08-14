@@ -122,11 +122,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
             try {
                 const response = await fetch('/api/articles');
-                if (!response.ok) throw new Error('Network response was not ok');
-                const articles = await response.json();
+                if (!response.ok) throw new Error('Network response was not ok: ' + response.status);
+                
+                const data = await response.json();
+                
+                // Handle both array and wrapped response formats
+                const articles = Array.isArray(data) ? data : (data.data || []);
 
                 loading.remove();
-                addMessage(renderArticles(articles), false, 'html');
+                if (articles.length === 0) {
+                    addMessage('На данный момент нет новых статей.');
+                } else {
+                    addMessage(renderArticles(articles), false, 'html');
+                }
             } catch (error) {
                 console.error('Error fetching articles:', error);
                 loading.remove();
